@@ -103,12 +103,7 @@ my $dsqams = getwpsection($modemsp, "Downstream QAM");
 my @dsqamt = parsetable($dsqams);
 my $usqams = getwpsection($modemsp, "Upstream QAM");
 my @usqamt = parsetable($usqams);
-#for ($r = 0; $r < 5; $r++) {
-#  print("[$r]: " . $dsqamt[$r] . "\n");
-#  for ($c = 0; $c <5; $c++) {
-#    print("[$r][$c]: " . $dsqamt[$r]->[$c] . "\n");
-#  }
-#}
+
 if ((@ARGV > 0) && ($ARGV[0] eq "config")) {
   if (length($fakehost) > 0) { print("host_name $fakehost\n"); }
   
@@ -365,97 +360,3 @@ for ($r = 0; $r < @usqamt; $r++) {
 }
 
 exit(0);
-#print($dslsp);
-# Remove non-tables, colors, table attributes and all that useless stuff
-$dslsp =~ s/(<[a-zA-Z]*) (.*?)>/$1>/sg;
-$dslsp =~ s|.*?<table>(.*)</table>.*|$1|sgi;
-$dslsp =~ s|</{0,1}font>||g;
-if (defined($ENV{'VERBOSE'}) && ($ENV{'VERBOSE'} eq '1')) {
-  print("$dslsp\n");
-}
-my $curdnrate = 'U';
-my $curuprate = 'U';
-my $attdnrate = 'U';
-my $attuprate = 'U';
-my $snrmargindn = 'U';
-my $snrmarginup = 'U';
-my $attenuationdn = 'U';
-my $attenuationup = 'U';
-my $crcerrsdn = 'U';
-my $crcerrsup = 'U';
-my $fecsdn = 'U';
-my $fecsup = 'U';
-my $esdn = 'U';
-my $esup = 'U';
-my $sesdn = 'U';
-my $sesup = 'U';
-my $lossdn = 'U';
-my $lossup = 'U';
-my $uasdn = 'U';
-my $uasup = 'U';
-if ($dslsp =~ m!Attainable Rate</td><td>(.*?)</td><td>.*?</td><td>(.*?)</td>!) {
-  $attdnrate = int($1) * 1000;
-  $attuprate = int($2) * 1000;
-}
-if ($dslsp =~ m!Actual Rate</td><td>(.*?)</td><td>.*?</td><td>(.*?)</td>!) {
-  $curdnrate = int($1) * 1000;
-  $curuprate = int($2) * 1000;
-}
-if ($dslsp =~ m!SNR Margin</td><td>(.*?)</td><td>.*?</td><td>(.*?)</td>!) {
-  $snrmargindn = $1;
-  $snrmarginup = $2;
-}
-if ($dslsp =~ m!Attenuation</td><td>(.*?)</td><td>.*?</td><td>(.*?)</td>!) {
-  $attenuationdn = $1;
-  $attenuationup = $2;
-}
-if ($dslsp =~ m!<td>CRC</td><td>(.*?)</td><td>(.*?)</td>!) { # different because of colspan=2!
-  $crcerrsdn = int($1);
-  $crcerrsup = int($2);
-}
-if ($dslsp =~ m!FECS</td><td>(.*?)</td><td>.*?</td><td>(.*?)</td>!) {
-  $fecsdn = int($1);
-  $fecsup = int($2);
-}
-if ($dslsp =~ m!<td>ES</td><td>(.*?)</td><td>.*?</td><td>(.*?)</td>!) {
-  $esdn = int($1);
-  $esup = int($2);
-}
-if ($dslsp =~ m!<td>SES</td><td>(.*?)</td><td>.*?</td><td>(.*?)</td>!) {
-  $sesdn = int($1);
-  $sesup = int($2);
-}
-if ($dslsp =~ m!<td>LOSS</td><td>(.*?)</td><td>.*?</td><td>(.*?)</td>!) {
-  $lossdn = int($1);
-  $lossup = int($2);
-}
-if ($dslsp =~ m!<td>UAS</td><td>(.*?)</td><td>.*?</td><td>(.*?)</td>!) {
-  $uasdn = int($1);
-  $uasup = int($2);
-}
-if (length($fakehost) > 0) { print("host_name $fakehost\n"); }
-print("multigraph vig130_datarates\n");
-print("attdnrate.value $attdnrate\n");
-print("attuprate.value $attuprate\n");
-print("curdnrate.value $curdnrate\n");
-print("curuprate.value $curuprate\n");
-print("multigraph vig130_snrmargins\n");
-print("snrmargindn.value $snrmargindn\n");
-print("snrmarginup.value $snrmarginup\n");
-print("multigraph vig130_attenuation\n");
-print("attenuationdn.value $attenuationdn\n");
-print("attenuationup.value $attenuationup\n");
-print("multigraph vig130_errors1_dn\n");
-print("crcerrsdn.value $crcerrsdn\n");
-print("fecsdn.value $fecsdn\n");
-print("esdn.value $esdn\n");
-print("sesdn.value $sesdn\n");
-print("lossdn.value $lossdn\n");
-print("uasdn.value $uasdn\n");
-print("multigraph vig130_errors1_up\n");
-print("crcerrsup.value $crcerrsup\n");
-print("fecsup.value $fecsup\n");
-print("esup.value $esup\n");
-print("sesup.value $sesup\n");
-print("lossup.value $lossup\n");
-print("uasup.value $uasup\n");
