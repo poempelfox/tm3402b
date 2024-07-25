@@ -28,6 +28,10 @@ my $timeout = 10; # the LWP default of 180 secs would be way too long
 
 # ----------------------------------------------------------------------------
 
+# Global variable to store the 'credential', aka token for authentication.
+# This is saved to file.
+$credential = '';
+
 use LWP::UserAgent;
 
 # Par. 0: Hostname/IP
@@ -39,12 +43,62 @@ sub getmodemstatuspage($) {
   $ua->timeout($timeout);
   $ua->requests_redirectable([]); # Do not automatically follow redirects
   $ua->ssl_opts( 'verify_hostname' => 0, 'SSL_verify_mode' => 0x00);
-  $res = $ua->get("https://${hn}/cgi-bin/status_cgi");
+  if (length($credential) > 0) { # Try to log in with the credential
+    $res = $ua->get("https://${hn}/cgi-bin/status_cgi",
+                    "Cookie" => "credential=${credential}");
+  } else {
+    $res = $ua->get("https://${hn}/cgi-bin/status_cgi");
+  }
   unless ($res->is_success()) {
-    print("# ERROR fetching status info: " . $res->status_line . "\n");
+    print("# ERROR fetching status info (1): " . $res->status_line . "\n");
     return undef;
   }
   my $rv = $res->content();
+  if ((length($rv) < 500) && ($rv =~ m/http-equiv="refresh" content="0;url=login_cgi"/s)) {
+    unless (($ENV{'PASSWORD'}) && ($ENV{'USERNAME'})) {
+      print("# ERROR modem requires login, but environment variables USERNAME and PASSWORD are not set.\n");
+      return undef;
+    }
+    my %frm = ( 'username' => $ENV{'USERNAME'},
+                'password' => $ENV{'PASSWORD'} );
+    $res = $ua->post("https://${hn}/cgi-bin/login_cgi",
+                     "Content-type" => "application/x-www-form-urlencoded",
+                     "Content" => \%frm);
+    unless (defined($res->header('Set-Cookie'))) {
+      sleep(1);
+      # This frequently fails for no discernible reason. Retrying it works.
+      $res = $ua->post("https://${hn}/cgi-bin/login_cgi",
+                       "Content-type" => "application/x-www-form-urlencoded",
+                       "Content" => \%frm);
+      unless (defined($res->header('Set-Cookie'))) {
+        print("# ERROR logging into modem webinterface (1)\n");
+        return undef;
+      }
+    }
+    unless ($res->header('Set-Cookie') =~ m/credential=([a-zA-Z0-9]+)/) {
+      print("# ERROR logging into modem webinterface (2)\n");
+      return undef;
+    }
+    $credential = $1;
+    # Also save this credential for later use
+    if (($ENV{'MUNIN_STATEFILE'}) && (length($ENV{'MUNIN_STATEFILE'}) > 0)) {
+      my $fh;
+      if (open($fh, '>', $ENV{'MUNIN_STATEFILE'})) { # Opened OK
+        print($fh $credential);
+        close($fh);
+      } else {
+        print("# ERROR could not write statefile " . $ENV{'MUNIN_STATEFILE'} . "\n");
+      }
+    }
+    # repeat the request above, but this time with credentials.
+    $res = $ua->get("https://${hn}/cgi-bin/status_cgi",
+                    "Cookie" => "credential=${credential}");
+    unless ($res->is_success()) {
+      print("# ERROR fetching status info (2): " . $res->status_line . "\n");
+      return undef;
+    }
+    $rv = $res->content();
+  }
   return $rv;
 }
 
@@ -81,6 +135,19 @@ sub parsetable($) {
   return @res;
 }
 
+sub trytoloadstatus() {
+  unless (($ENV{'MUNIN_STATEFILE'}) && (length($ENV{'MUNIN_STATEFILE'}) > 0)) {
+    print("# WARNING statefile not set?!\n");
+    return;
+  }
+  my $fh;
+  unless (open($fh, '<', $ENV{'MUNIN_STATEFILE'})) { # No statefile. that's perfectly normal.
+    return;
+  }
+  $credential=<$fh>;
+  close($fh);
+}
+
 if ((@ARGV > 0) && ($ARGV[0] eq "autoconf")) {
   print("No\n");
   exit(0);
@@ -95,10 +162,12 @@ if ($progname =~ m/([a-zA-Z0-9]+\.[a-zA-Z0-9.]+)_.+/) {
   $hostname = $1;
 }
 if (defined($ENV{'hostname'})) { $hostname = $ENV{'hostname'} }
+trytoloadstatus();
 $modemsp = getmodemstatuspage($hostname);
 unless (defined($modemsp)) {
   exit(1);
 }
+
 my $dsqams = getwpsection($modemsp, "Downstream QAM");
 my @dsqamt = parsetable($dsqams);
 my $usqams = getwpsection($modemsp, "Upstream QAM");
